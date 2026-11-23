@@ -9,15 +9,28 @@
 // Run locally:
 //   mkdir -p out && MAKEFUN_BOT_DIR=. MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const BOT_DIR = process.env.MAKEFUN_BOT_DIR ?? '/bot';
 const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
+// A post address looks like https://x.com/<handle>/status/<digits>.
+// Refuse the starter's placeholder instead of copying it through,
+// so a forgotten POST.json fails loudly here rather than at the gate.
+const POST_URL = /^https:\/\/(www\.|mobile\.)?(x\.com|twitter\.com)\/[^/]+\/status\/\d+$/;
+
+const postPath = join(BOT_DIR, 'POST.json');
+const post = JSON.parse(readFileSync(postPath, 'utf8')) as { url?: unknown };
+if (typeof post.url !== 'string' || !POST_URL.test(post.url)) {
+  console.error(`POST.json does not name an X post address: ${String(post.url)}`);
+  process.exit(1);
+}
+
 mkdirSync(OUTPUT_DIR, { recursive: true });
 try {
-  copyFileSync(join(BOT_DIR, 'POST.json'), join(OUTPUT_DIR, 'POST.json'));
+  copyFileSync(postPath, join(OUTPUT_DIR, 'POST.json'));
+  console.log(`POST.json copied for post ${post.url}`);
 } catch (err) {
   console.error(`POST.json could not be copied from ${BOT_DIR}: ${(err as Error).message}`);
   process.exit(1);
